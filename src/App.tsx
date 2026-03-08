@@ -63,25 +63,43 @@ const PASTEL_COLORS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "tasks" | "input" | "sheets">("dashboard");
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const localTasks = localStorage.getItem("tasks");
+    return localTasks ? JSON.parse(localTasks) : [];
+  });
+  const [headerInfo, setHeaderInfo] = useState(() => {
+    const localHeader = localStorage.getItem("headerInfo");
+    return localHeader ? JSON.parse(localHeader) : {
+      reportTo: "TỔNG QUẢN LÝ",
+      department: "CÁC MẢNG CÔNG VIỆC THÀNH PHẦN",
+      compiler: "TRẦN THỊ THU PHƯƠNG",
+      startDate: "01/01/2026",
+      endDate: "30/04/2026",
+      projectName: "DỰ ÁN \"BÀ NÀ - 4 VÙNG\"",
+      mission: "Xây dựng Hành trình trải nghiệm trọn vẹn cho du khách theo 4 Vùng đất:",
+      regions: ["Vùng đất Diệu kỳ", "Vương Quốc Mặt Trời", "Vương Quốc Mặt Trăng", "Vùng đất Nguồn Cội"]
+    };
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchInitialData = async () => {
+      console.log("Fetching initial data from server...");
       try {
         // Fetch tasks
         const tasksResponse = await fetch("/api/tasks");
         const tasksData = await tasksResponse.json();
+        
         if (tasksData && tasksData.length > 0) {
+          console.log("Server has tasks, updating local state");
           setTasks(tasksData);
-        } else {
+          localStorage.setItem("tasks", JSON.stringify(tasksData));
+        } else if (tasks.length === 0) {
+          console.log("No tasks anywhere, using mock tasks");
           setTasks(MOCK_TASKS);
+          localStorage.setItem("tasks", JSON.stringify(MOCK_TASKS));
           for (const task of MOCK_TASKS) {
-            await fetch("/api/tasks", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(task),
-            });
+            await saveTaskToServer(task);
           }
         }
 
@@ -89,11 +107,12 @@ export default function App() {
         const headerResponse = await fetch("/api/settings/headerInfo");
         const headerData = await headerResponse.json();
         if (headerData) {
+          console.log("Server has header info, updating local state");
           setHeaderInfo(headerData);
+          localStorage.setItem("headerInfo", JSON.stringify(headerData));
         }
       } catch (error) {
-        console.error("Failed to fetch initial data:", error);
-        setTasks(MOCK_TASKS);
+        console.error("Failed to fetch from server, using local data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -102,26 +121,37 @@ export default function App() {
   }, []);
 
   const saveHeaderInfoToServer = async (info: typeof headerInfo) => {
+    console.log("Saving header info...", info);
+    localStorage.setItem("headerInfo", JSON.stringify(info));
     try {
-      await fetch("/api/settings/headerInfo", {
+      const response = await fetch("/api/settings/headerInfo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(info),
       });
+      if (!response.ok) throw new Error("Failed to save header info");
     } catch (error) {
-      console.error("Failed to save header info:", error);
+      console.error("Failed to save header info to server:", error);
     }
   };
 
   const saveTaskToServer = async (task: Task) => {
+    console.log("Saving task...", task.recordId);
+    // Update localStorage
+    const localTasks = JSON.parse(localStorage.getItem("tasks") || "[]");
+    const updatedLocalTasks = localTasks.filter((t: Task) => t.recordId !== task.recordId);
+    updatedLocalTasks.push(task);
+    localStorage.setItem("tasks", JSON.stringify(updatedLocalTasks));
+
     try {
-      await fetch("/api/tasks", {
+      const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(task),
       });
+      if (!response.ok) throw new Error("Failed to save task");
     } catch (error) {
-      console.error("Failed to save task:", error);
+      console.error("Failed to save task to server:", error);
     }
   };
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,18 +159,6 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'model', text: string }[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-
-  // Editable Header Info
-  const [headerInfo, setHeaderInfo] = useState({
-    reportTo: "TỔNG QUẢN LÝ",
-    department: "CÁC MẢNG CÔNG VIỆC THÀNH PHẦN",
-    compiler: "TRẦN THỊ THU PHƯƠNG",
-    startDate: "01/01/2026",
-    endDate: "30/04/2026",
-    projectName: "DỰ ÁN \"BÀ NÀ - 4 VÙNG\"",
-    mission: "Xây dựng Hành trình trải nghiệm trọn vẹn cho du khách theo 4 Vùng đất:",
-    regions: ["Vùng đất Diệu kỳ", "Vương Quốc Mặt Trời", "Vương Quốc Mặt Trăng", "Vùng đất Nguồn Cội"]
-  });
 
   const [isEditingHeader, setIsEditingHeader] = useState(false);
 
@@ -322,6 +340,24 @@ export default function App() {
     } finally {
       setIsChatLoading(false);
     }
+  };
+
+  const handleSaveHeader = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const newHeader = {
+      ...headerInfo,
+      reportTo: formData.get("reportTo") as string,
+      department: formData.get("department") as string,
+      compiler: formData.get("compiler") as string,
+      startDate: formData.get("startDate") as string,
+      endDate: formData.get("endDate") as string,
+      projectName: formData.get("projectName") as string,
+      mission: formData.get("mission") as string,
+    };
+    setHeaderInfo(newHeader);
+    saveHeaderInfoToServer(newHeader);
+    setIsEditingHeader(false);
   };
 
   const renderDashboard = () => (
@@ -1223,6 +1259,15 @@ function refreshDataTasks() {
       </div>
     </motion.div>
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-500 font-medium animate-pulse">Đang tải dữ liệu dự án...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">

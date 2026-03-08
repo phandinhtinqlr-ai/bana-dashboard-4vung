@@ -7,7 +7,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("tasks.db");
+const dbPath = path.join(__dirname, "tasks.db");
+console.log(`Initializing database at: ${dbPath}`);
+const db = new Database(dbPath);
 
 // Initialize database
 db.exec(`
@@ -45,6 +47,12 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Request logger
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
 
   // API Routes
   app.get("/api/settings/:key", (req, res) => {
