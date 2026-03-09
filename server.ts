@@ -55,6 +55,10 @@ async function startServer() {
   });
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   app.post("/api/login", (req, res) => {
     const { username, password } = req.body;
     // Simple shared account for the project

@@ -1470,6 +1470,20 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
+
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        const res = await fetch("/api/health");
+        if (res.ok) setServerStatus("online");
+        else setServerStatus("offline");
+      } catch (e) {
+        setServerStatus("offline");
+      }
+    };
+    checkServer();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1481,6 +1495,18 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
+      
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          setError(data.message || `Lỗi server (${response.status})`);
+        } else {
+          setError(`Lỗi kết nối: Server không phản hồi đúng định dạng (Có thể do chưa khởi động server hoặc sai cấu hình deployment)`);
+        }
+        return;
+      }
+
       const data = await response.json();
       if (data.success) {
         onLogin(data.user);
@@ -1488,7 +1514,8 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
         setError(data.message || "Đăng nhập thất bại");
       }
     } catch (err) {
-      setError("Lỗi kết nối server");
+      console.error("Login error:", err);
+      setError("Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc đảm bảo server đang chạy.");
     } finally {
       setIsLoading(false);
     }
@@ -1507,6 +1534,16 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
           </div>
           <h1 className="text-2xl font-bold">Bà Nà - 4 Vùng</h1>
           <p className="text-indigo-100 text-sm mt-2">Đăng nhập để truy cập dữ liệu dự án</p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              serverStatus === "online" ? "bg-emerald-400 animate-pulse" : 
+              serverStatus === "offline" ? "bg-rose-400" : "bg-slate-400"
+            )} />
+            <span className="text-[10px] text-indigo-100 uppercase tracking-widest">
+              Server: {serverStatus === "online" ? "Sẵn sàng" : serverStatus === "offline" ? "Mất kết nối" : "Đang kiểm tra..."}
+            </span>
+          </div>
         </div>
         
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
