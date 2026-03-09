@@ -55,6 +55,16 @@ async function startServer() {
   });
 
   // API Routes
+  app.post("/api/login", (req, res) => {
+    const { username, password } = req.body;
+    // Simple shared account for the project
+    if (username === "admin" && password === "bana2026") {
+      res.json({ success: true, user: { username: "admin", name: "Quản trị viên" } });
+    } else {
+      res.status(401).json({ success: false, message: "Tên đăng nhập hoặc mật khẩu không đúng" });
+    }
+  });
+
   app.get("/api/settings/:key", (req, res) => {
     const { key } = req.params;
     try {

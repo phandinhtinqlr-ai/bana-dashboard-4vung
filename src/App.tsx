@@ -63,6 +63,10 @@ const PASTEL_COLORS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "tasks" | "input" | "sheets">("dashboard");
+  const [user, setUser] = useState<{ username: string; name: string } | null>(() => {
+    const localUser = localStorage.getItem("user");
+    return localUser ? JSON.parse(localUser) : null;
+  });
   const [tasks, setTasks] = useState<Task[]>(() => {
     const localTasks = localStorage.getItem("tasks");
     return localTasks ? JSON.parse(localTasks) : [];
@@ -83,6 +87,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
+    
     const fetchInitialData = async () => {
       console.log("Fetching initial data from server...");
       try {
@@ -1260,6 +1266,18 @@ function refreshDataTasks() {
     </motion.div>
   );
 
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    setUser(null);
+  };
+
+  if (!user) {
+    return <Login onLogin={(u) => {
+      localStorage.setItem("user", JSON.stringify(u));
+      setUser(u);
+    }} />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
@@ -1308,13 +1326,22 @@ function refreshDataTasks() {
         </div>
 
         <div className="p-4 border-t border-slate-100">
-          <div className="bg-slate-50 p-3 rounded-xl flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-xs">AD</div>
-            <div className="hidden md:block">
-              <p className="text-xs font-bold text-slate-900">Admin User</p>
-              <p className="text-[10px] text-slate-500">Project Manager</p>
+          <div className="bg-slate-50 p-3 rounded-xl flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
+              {user.name.charAt(0)}
+            </div>
+            <div className="hidden md:block overflow-hidden">
+              <p className="text-xs font-bold text-slate-900 truncate">{user.name}</p>
+              <p className="text-[10px] text-slate-500 truncate">@{user.username}</p>
             </div>
           </div>
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-rose-500 hover:bg-rose-50 transition-all"
+          >
+            <XCircle size={18} />
+            <span className="hidden md:block text-xs font-medium">Đăng xuất</span>
+          </button>
         </div>
       </nav>
 
@@ -1437,6 +1464,105 @@ function refreshDataTasks() {
 }
 
 // --- Sub-components ---
+
+function Login({ onLogin }: { onLogin: (user: { username: string; name: string }) => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        onLogin(data.user);
+      } else {
+        setError(data.message || "Đăng nhập thất bại");
+      }
+    } catch (err) {
+      setError("Lỗi kết nối server");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+      >
+        <div className="bg-indigo-600 p-8 text-center text-white">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <LayoutDashboard size={32} />
+          </div>
+          <h1 className="text-2xl font-bold">Bà Nà - 4 Vùng</h1>
+          <p className="text-indigo-100 text-sm mt-2">Đăng nhập để truy cập dữ liệu dự án</p>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          {error && (
+            <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-xl flex items-center gap-2">
+              <AlertCircle size={18} />
+              {error}
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tên đăng nhập</label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
+                placeholder="Nhập tên đăng nhập"
+                required
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mật khẩu</label>
+            <div className="relative">
+              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
+                placeholder="Nhập mật khẩu"
+                required
+              />
+            </div>
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isLoading ? <RefreshCw className="animate-spin" size={20} /> : "Đăng nhập"}
+          </button>
+          
+          <div className="text-center">
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest">Dùng chung cho đội ngũ dự án</p>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
 
 function NavItem({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
