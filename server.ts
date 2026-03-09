@@ -56,7 +56,12 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    res.setHeader("Content-Type", "application/json");
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV || "development"
+    });
   });
 
   app.post("/api/login", (req, res) => {

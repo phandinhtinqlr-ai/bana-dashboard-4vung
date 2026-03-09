@@ -1476,8 +1476,17 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
     const checkServer = async () => {
       try {
         const res = await fetch("/api/health");
-        if (res.ok) setServerStatus("online");
-        else setServerStatus("offline");
+        if (res.ok) {
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            if (data.status === "ok") {
+              setServerStatus("online");
+              return;
+            }
+          }
+        }
+        setServerStatus("offline");
       } catch (e) {
         setServerStatus("offline");
       }
@@ -1547,6 +1556,17 @@ function Login({ onLogin }: { onLogin: (user: { username: string; name: string }
         </div>
         
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          {window.location.hostname.includes("vercel.app") && (
+            <div className="p-4 bg-amber-50 border border-amber-100 text-amber-700 text-xs rounded-xl space-y-2">
+              <div className="flex items-center gap-2 font-bold">
+                <AlertCircle size={14} />
+                Lưu ý về Vercel
+              </div>
+              <p>Bạn đang chạy ứng dụng trên Vercel. Nền tảng này không hỗ trợ lưu trữ dữ liệu tập trung (SQLite) theo cách hiện tại.</p>
+              <p className="font-bold">Giải pháp: Hãy nhấn nút "Deploy" trong AI Studio để đưa ứng dụng lên Cloud Run. Đó là môi trường được tối ưu cho ứng dụng này.</p>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-xl flex items-center gap-2">
               <AlertCircle size={18} />
